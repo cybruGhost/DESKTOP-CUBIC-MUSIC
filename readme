@@ -1,1 +1,21 @@
 DESKTOP KOTLIN APP VERION 1
+# Cubic Music Portable
+
+`CubicMusic-Portable.exe` is the single-file Windows version of Cubic Music.
+
+## Run or share
+
+1. Copy or send only `CubicMusic-Portable.exe`.
+2. Double-click it to launch Cubic Music.
+3. Allow a few seconds on the first launch while the bundled runtime is prepared.
+
+No installer or additional folder is required. Windows may show a security warning because this personal build is not digitally signed.
+
+## Requirements
+
+- Windows 10 or Windows 11, 64-bit
+- Internet access for searching and streaming music
+- Approximately 600 MB of free space for the executable and its private runtime cache
+
+The private cache is created automatically under `%LOCALAPPDATA%\CubicMusic\PortableCache` and can be deleted when Cubic Music is closed.
+
