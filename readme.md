@@ -2,7 +2,7 @@ DESKTOP KOTLIN APP VERION 1
 # Cubic Music Portable
 
 `CubicMusic-Portable.exe` is the single-file Windows version of Cubic Music.
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/cybruGhost/DESKTOP-CUBIC-MUSIC/latest/total)
+![GitHub all downloads](https://img.shields.io/github/downloads/cybruGhost/DESKTOP-CUBIC-MUSIC/total)
 ## Run or share
 
 1. Copy or send only `CubicMusic-Portable.exe`.
