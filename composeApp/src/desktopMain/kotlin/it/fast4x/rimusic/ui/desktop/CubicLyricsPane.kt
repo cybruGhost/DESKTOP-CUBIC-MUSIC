@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -87,20 +87,25 @@ internal fun CubicSynchronizedLyricsPane(
                 CircularProgressIndicator(color = CubicColors.Accent, strokeWidth = 2.dp)
             }
             mode == LyricsMode.Synced && timed.isNotEmpty() -> {
-                // The compact side player gets a dedicated live line; the expanded player stays a clean lyric list.
+                // The compact side player gets a dedicated current line; the expanded player stays a clean lyric list.
                 if (showLiveLine) activeLine?.let { line ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                             .background(CubicColors.Accent.copy(alpha = 0.14f))
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(Modifier.width(3.dp).height(28.dp).clip(RoundedCornerShape(2.dp)).background(CubicColors.Accent))
+                        Box(Modifier.width(3.dp).heightIn(min = 32.dp).clip(RoundedCornerShape(2.dp)).background(CubicColors.Accent))
                         Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("LIVE LYRICS", color = CubicColors.Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            Text(line.text, color = CubicColors.Text, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
+                        Text(
+                            line.text,
+                            modifier = Modifier.weight(1f),
+                            color = CubicColors.Text,
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp,
+                            fontWeight = FontWeight.Bold,
+                            softWrap = true
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                 }

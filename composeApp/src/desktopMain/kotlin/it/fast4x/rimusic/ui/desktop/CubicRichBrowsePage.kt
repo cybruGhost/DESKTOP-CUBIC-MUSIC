@@ -76,6 +76,7 @@ internal fun CubicRichBrowsePage(
             val allSongs = (quickPicks + topSongs + trending + related).distinctBy { it.key }
             val longListens = allSongs.filter { it.durationText.cubicDurationSeconds() >= 300 }.take(12)
             val releases = data.discover?.newReleaseAlbums.orEmpty().distinctBy { it.key }
+            val relatedAlbums = data.related?.albums.orEmpty().distinctBy { it.key }
             val moods = data.discover?.moods.orEmpty().distinctBy { it.title }
             val chartPlaylists = data.charts?.playlists.orEmpty().distinctBy { it.key }
             val globalCharts = chartPlaylists.filter { playlist ->
@@ -83,6 +84,7 @@ internal fun CubicRichBrowsePage(
             }.ifEmpty { chartPlaylists }
             val videos = data.charts?.videos.orEmpty().filter { it.key.isNotBlank() }.distinctBy { it.key }
             val artists = data.charts?.artists.orEmpty().plus(data.related?.artists.orEmpty()).distinctBy { it.key }
+            val tasteArtists = data.related?.artists.orEmpty().distinctBy { it.key }
 
             val listState = rememberLazyListState()
             val scrollScope = rememberCoroutineScope()
@@ -117,7 +119,7 @@ internal fun CubicRichBrowsePage(
 
                 if (moods.isNotEmpty()) item {
                     Spacer(Modifier.height(24.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         items(moods.take(14), key = { it.title }) { mood ->
                             val stripe = Color(mood.stripeColor)
                             Row(Modifier.clip(RoundedCornerShape(12.dp)).background(stripe.copy(alpha = .2f)).clickable { onMoodClick(mood) }.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,9 +132,32 @@ internal fun CubicRichBrowsePage(
 
                 if (releases.isNotEmpty()) item {
                     RichSpacerTitle("New releases", "Albums landing now")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(releases.take(16), key = { it.key }) { album ->
                             CubicMediaCard(album.title.orEmpty(), album.authors.orEmpty().joinToString(", ") { it.name.orEmpty() }, album.thumbnail?.url, { onAlbumClick(album.key) })
+                        }
+                    }
+                }
+
+                if (relatedAlbums.isNotEmpty()) item {
+                    RichSpacerTitle("Related albums", "More from the artists in your rotation")
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(relatedAlbums.take(16), key = { "related-album-${it.key}" }) { album ->
+                            CubicMediaCard(
+                                album.title.orEmpty(),
+                                album.authors.orEmpty().joinToString(", ") { it.name.orEmpty() },
+                                album.thumbnail?.url,
+                                { onAlbumClick(album.key) }
+                            )
+                        }
+                    }
+                }
+
+                if (tasteArtists.isNotEmpty()) item {
+                    RichSpacerTitle("Artists for your taste", "Based on the music you have been exploring")
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        items(tasteArtists.take(14), key = { "taste-artist-${it.key}" }) { artist ->
+                            CubicArtistCard(artist) { onArtistClick(artist.key) }
                         }
                     }
                 }
@@ -155,7 +180,7 @@ internal fun CubicRichBrowsePage(
 
                 if (globalCharts.isNotEmpty()) item {
                     RichSpacerTitle("Global Top 50", "Open a complete chart")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(globalCharts.take(10), key = { it.key }) { playlist ->
                             CubicMediaCard(playlist.title.orEmpty(), playlist.channel?.name ?: playlist.songCount?.let { "$it songs" }.orEmpty(), playlist.thumbnail?.url, { onPlaylistClick(playlist.key) })
                         }
@@ -176,7 +201,7 @@ internal fun CubicRichBrowsePage(
 
                 if (videos.isNotEmpty()) item {
                     RichSpacerTitle("Music videos", "Watch-worthy tracks from the live charts")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(videos.take(14), key = { it.key }) { video ->
                             Column(Modifier.width(190.dp).clip(RoundedCornerShape(16.dp)).clickable { onSongClick(video.cubicAsSong()) }.padding(bottom = 5.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CubicArtwork(video.thumbnail?.url, Modifier.width(190.dp).height(112.dp), 15.dp)
@@ -189,7 +214,7 @@ internal fun CubicRichBrowsePage(
 
                 if (artists.isNotEmpty()) item {
                     RichSpacerTitle("Artists in rotation", "Open a full artist page")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         items(artists.take(14), key = { it.key }) { artist -> CubicArtistCard(artist) { onArtistClick(artist.key) } }
                     }
                 }
@@ -230,7 +255,7 @@ private fun RichRankedSong(index: Int, song: Innertube.SongItem, onSongClick: (S
 
 @Composable
 private fun RichSongShelf(songs: List<Innertube.SongItem>, onSongClick: (Song) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
+    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
         items(songs, key = { it.key }) { song ->
             Column(Modifier.width(154.dp).clip(RoundedCornerShape(16.dp)).clickable { onSongClick(song.asSong) }.padding(bottom = 5.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 CubicArtwork(song.thumbnail?.url, Modifier.size(154.dp), 17.dp)

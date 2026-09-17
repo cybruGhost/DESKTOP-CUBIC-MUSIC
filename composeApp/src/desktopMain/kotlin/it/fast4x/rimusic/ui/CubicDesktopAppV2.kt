@@ -40,6 +40,7 @@ import app.it.fast4x.rimusic.ui.desktop.CubicAlbumDetailPage
 import app.it.fast4x.rimusic.net.CubicPlayTorrioResolver
 import app.it.fast4x.rimusic.ui.desktop.CubicAlbumsPage
 import app.it.fast4x.rimusic.ui.desktop.CubicArtistDetailPage
+import app.it.fast4x.rimusic.ui.desktop.CubicArtistStore
 import app.it.fast4x.rimusic.ui.desktop.CubicArtistsPage
 import app.it.fast4x.rimusic.ui.desktop.CubicLiveSearchPage
 import app.it.fast4x.rimusic.ui.desktop.CubicRichBrowsePage
@@ -65,6 +66,7 @@ import app.it.fast4x.rimusic.ui.desktop.CubicSongCollection
 import app.it.fast4x.rimusic.ui.desktop.CubicSongsPage
 import app.it.fast4x.rimusic.ui.desktop.CubicSongsDiscoveryPage
 import app.it.fast4x.rimusic.ui.desktop.CubicUserPlaylistsPage
+import app.it.fast4x.rimusic.ui.desktop.CubicTastePage
 import app.it.fast4x.rimusic.ui.desktop.CubicPlaylistStore
 import app.it.fast4x.rimusic.ui.desktop.CubicProfileStore
 import app.it.fast4x.rimusic.ui.desktop.CubicTasteStore
@@ -74,9 +76,12 @@ import app.it.fast4x.rimusic.ui.screens.PlaylistScreen
 import app.it.fast4x.rimusic.utils.asSong
 import database.DB
 import database.entities.Song
+import database.entities.Album
+import database.entities.SongAlbumMap
 import database.entities.SongEntity
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.NextBody
+import it.fast4x.innertube.requests.player
 import it.fast4x.innertube.requests.relatedPage
 import it.fast4x.innertube.utils.NewPipeUtils
 import it.fast4x.lrclib.LrcLib
@@ -85,6 +90,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import windows.FfmpegAudioController
 import java.awt.Frame
@@ -120,12 +126,14 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
     var downloadedFiles by remember { mutableStateOf(CubicDownloadStore.downloadedFiles()) }
     var profileName by remember { mutableStateOf(CubicProfileStore.username()) }
     var totalPlays by remember { mutableIntStateOf(CubicProfileStore.totalPlays()) }
+    var tasteRefresh by remember { mutableIntStateOf(0) }
     var keepSidebarExpanded by remember { mutableStateOf(CubicProfileStore.keepSidebarExpanded()) }
     var syncedLyrics by remember { mutableStateOf<String?>(null) }
     var plainLyrics by remember { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     var completionHandledFor by remember { mutableStateOf<String?>(null) }
     var playbackRetryCount by remember { mutableIntStateOf(0) }
+    var playRequestGeneration by remember { mutableIntStateOf(0) }
     var pendingResumePosition by remember { mutableStateOf(0L) }
 
     var selectedMood by remember { mutableStateOf<Innertube.Mood.Item?>(null) }
@@ -172,8 +180,29 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
 
     LaunchedEffect(librarySongs) {
         if (librarySongs.isNotEmpty() && sessionHistory.isEmpty()) {
-            val byId = librarySongs.associateBy { it.song.id }
-            sessionHistory.addAll(CubicTasteStore.ids().mapNotNull { byId[it]?.song })
+            val byId = (librarySongs.map { it.song } + CubicTasteStore.songMetadata())
+                .associateBy { it.id }
+            sessionHistory.addAll(CubicTasteStore.ids().mapNotNull { byId[it] })
+        }
+    }
+
+    // Older desktop builds stored only ids and the aggregate play counter.  Rehydrate
+    // those ids once from InnerTube so My Taste can show the real title/artist/artwork
+    // instead of an empty page after an upgrade.
+    LaunchedEffect(Unit) {
+        val known = CubicTasteStore.songMetadata().mapTo(mutableSetOf()) { it.id }
+        CubicTasteStore.topPlayedIds(20).filterNot { it in known }.forEach { videoId ->
+            val details = withTimeoutOrNull(5_000L) {
+                withContext(Dispatchers.IO) { Innertube.player(videoId = videoId)?.getOrNull()?.videoDetails }
+            } ?: return@forEach
+            val title = details.title?.takeIf(String::isNotBlank) ?: return@forEach
+            val seconds = details.lengthSeconds?.toLongOrNull()
+            val duration = seconds?.let { "${it / 60}:${(it % 60).toString().padStart(2, '0')}" }
+            val thumbnail = details.thumbnail?.thumbnails?.maxByOrNull { it.width ?: 0 }?.url
+            val song = Song(videoId, title, details.author, duration, thumbnail)
+            CubicTasteStore.saveMetadata(song)
+            database.upsert(song)
+            tasteRefresh++
         }
     }
 
@@ -187,15 +216,16 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
                 frame?.isResizable = false
                 windowState.isMinimized = false
                 windowState.placement = WindowPlacement.Floating
-                windowState.size = DpSize(620.dp, 140.dp)
+                // Keep the minimized player discreet: it is a floating control, not a second window.
+                windowState.size = DpSize(420.dp, 92.dp)
                 windowState.position = WindowPosition(Alignment.BottomEnd)
                 delay(150)
                 frame?.let {
                     val screen = it.graphicsConfiguration?.bounds
                         ?: GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
                     val scale = it.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
-                    val width = (620 * scale).toInt()
-                    val height = (140 * scale).toInt()
+                    val width = (420 * scale).toInt()
+                    val height = (92 * scale).toInt()
                     it.extendedState = Frame.NORMAL
                     it.setBounds(screen.x + screen.width - width - 18, screen.y + screen.height - height - 18, width, height)
                     it.validate()
@@ -278,25 +308,30 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
     }
 
     fun startSong(song: Song, queueIndex: Int) {
-        currentSong = librarySongs.firstOrNull { it.song.id == song.id }?.song ?: song
+        val targetSong = librarySongs.firstOrNull { it.song.id == song.id }?.song ?: song
+        val requestGeneration = playRequestGeneration + 1
+        playRequestGeneration = requestGeneration
+        currentSong = targetSong
         activeStreamUrl = null
         isResolving = true
         controller.stop()
-        controller.setExpectedDuration(currentSong?.durationText.cubicDurationMillis())
+        controller.setExpectedDuration(targetSong.durationText.cubicDurationMillis())
         currentQueueIndex = queueIndex
         completionHandledFor = null
         playbackRetryCount = 0
         pendingResumePosition = 0L
         sessionHistory.removeAll { it.id == song.id }
-        sessionHistory.add(0, currentSong!!)
+        sessionHistory.add(0, targetSong)
         totalPlays = CubicProfileStore.recordPlay()
-        scope.launch { database.upsert(currentSong!!) }
+        scope.launch { database.upsert(targetSong) }
         scope.launch {
-        CubicTasteStore.record(song.id)
+            CubicTasteStore.record(targetSong)
+            if (requestGeneration != playRequestGeneration) return@launch
             playbackMessage = null
             val cached = CubicDownloadStore.localFile(song.id)
             val resolved = cached?.takeIf { it.exists() }?.toURI()?.toString()
                 ?: resolveCubicDesktopPlaybackUrlV2(song.id, playbackHttpClient)
+            if (requestGeneration != playRequestGeneration) return@launch
             if (resolved != null) {
                 activeStreamUrl = resolved
                 playbackMessage = if (cached != null) "Playing offline" else "Playing"
@@ -357,9 +392,10 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
         plainLyrics = null
         scope.launch {
             librarySongs.forEach { database.delete(it.song) }
-            withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
                 CubicDownloadStore.clear()
                 CubicTasteStore.clear()
+                CubicArtistStore.clear()
                 CubicProfileStore.clearListeningStats()
                 CubicPlaylistStore.clear()
             }
@@ -485,6 +521,15 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
                                     composable(CubicRoutes.NewReleases) { CubicNewReleasesPage(discovery, discoveryLoading, discoveryError, { discoveryRefresh++ }) { selectedAlbumId = it; navigate(CubicRoutes.Album) } }
                                     composable(CubicRoutes.Recent) { CubicSongsPage(sessionHistory.map(::SongEntity), CubicSongCollection.Recent, currentSong?.id, ::playSong) }
                                     composable(CubicRoutes.Favorites) { CubicSongsPage(librarySongs, CubicSongCollection.Favorites, currentSong?.id, ::playSong) }
+                                    composable(CubicRoutes.Taste) {
+                                        CubicTastePage(
+                                            librarySongs = librarySongs,
+                                            refreshKey = tasteRefresh,
+                                            currentSongId = currentSong?.id,
+                                            onSongClick = ::playSong,
+                                            onArtistClick = { selectedArtistId = it; navigate(CubicRoutes.Artist) }
+                                        )
+                                    }
                                     composable(CubicRoutes.Cached) {
                                         CubicDownloadsPage(
                                             files = downloadedFiles,
@@ -505,7 +550,23 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
                                         ) { selectedPlaylistId = it; navigate(CubicRoutes.Playlist) }
                                     }
                                     composable(CubicRoutes.Search) { CubicLiveSearchPage(activeSearchQuery, ::playSong, { selectedAlbumId = it; navigate(CubicRoutes.Album) }, { selectedArtistId = it; navigate(CubicRoutes.Artist) }, { selectedPlaylistId = it; navigate(CubicRoutes.Playlist) }) }
-                                    composable(CubicRoutes.Album) { CubicAlbumDetailPage(selectedAlbumId.orEmpty(), { songs, index -> playSongsAsQueue(songs, index) }) { selectedAlbumId = it; navigate(CubicRoutes.Album) } }
+                                    composable(CubicRoutes.Album) {
+                                        CubicAlbumDetailPage(
+                                            browseId = selectedAlbumId.orEmpty(),
+                                            onAlbumSongClick = { songs, index -> playSongsAsQueue(songs, index) },
+                                            onAlbumClick = { selectedAlbumId = it; navigate(CubicRoutes.Album) },
+                                            onSaveAlbum = { album, songs ->
+                                                scope.launch {
+                                                    database.upsert(album)
+                                                    songs.forEachIndexed { index, song ->
+                                                        database.upsert(song)
+                                                        database.upsert(SongAlbumMap(songId = song.id, albumId = album.id, position = index))
+                                                    }
+                                                    playbackMessage = "Added ${album.title.orEmpty()} to Albums"
+                                                }
+                                            }
+                                        )
+                                    }
                                     composable(CubicRoutes.Artist) { CubicArtistDetailPage(selectedArtistId.orEmpty(), ::playSong, { selectedAlbumId = it; navigate(CubicRoutes.Album) }, { selectedPlaylistId = it; navigate(CubicRoutes.Playlist) }) }
                                     composable(CubicRoutes.Playlist) { PlaylistScreen(selectedPlaylistId.orEmpty(), ::playSong, { selectedAlbumId = it; navigate(CubicRoutes.Album) }, { navController.popBackStack() }) }
                                     composable(CubicRoutes.Mood) {
@@ -562,7 +623,7 @@ private suspend fun resolveCubicDesktopPlaybackUrlV2(videoId: String, httpClient
     CubicPlayTorrioResolver.resolve(videoId, httpClient)
 
 private suspend fun resolveCubicDesktopDownloadUrlV2(videoId: String, httpClient: OkHttpClient): String? =
-    CubicPlayTorrioResolver.resolve(videoId, httpClient)
+    CubicPlayTorrioResolver.resolveForDownload(videoId, httpClient)
 
 private fun String?.cubicDurationMillis(): Long {
     val parts = this?.split(':')?.mapNotNull(String::toLongOrNull) ?: return 0L

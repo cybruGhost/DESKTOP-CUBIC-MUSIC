@@ -32,6 +32,7 @@ internal val cubicDesktopPlaybackClients = listOf(
     YouTubeClient.ANDROID_VR_1_43_32,
     YouTubeClient.MOBILE,
     YouTubeClient.IOS,
+    YouTubeClient.IOS_MUSIC,
     YouTubeClient.ANDROID_MUSIC,
     YouTubeClient.IPADOS,
     YouTubeClient.ANDROID_CREATOR,
@@ -44,12 +45,10 @@ internal val cubicDesktopPlaybackClients = listOf(
 
 internal fun attachCubicPlaybackIdentity(url: String, client: YouTubeClient, cpn: String): String? {
     val parsed = url.toHttpUrlOrNull() ?: return null
-    val contentLength = parsed.queryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L }
     return parsed.newBuilder()
         .setQueryParameter("c", client.clientName)
         .setQueryParameter("cver", client.clientVersion)
         .setQueryParameter("cpn", cpn)
-        .apply { contentLength?.let { setQueryParameter("range", "0-${it - 1L}") } }
         .build()
         .toString()
 }

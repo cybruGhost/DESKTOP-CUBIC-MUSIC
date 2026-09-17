@@ -69,28 +69,48 @@ internal object CubicRangeTransfer {
             var emptyChunk = false
             client.newCall(request).execute().use { response ->
                 check(response.isSuccessful) {
-                    "Stream request failed with HTTP ${response.code} at bytes $copied-$end"
+                    "Download request failed with HTTP ${response.code} at bytes $copied-$end"
+                }
+                val contentType = response.header("Content-Type").orEmpty()
+                check(isMediaContentType(contentType)) {
+                    "Download server returned non-media content (${contentType.ifBlank { "unknown" }})."
                 }
                 val body = response.body
                 val parsedRange = response.header("Content-Range")?.let(contentRangePattern::find)
-                parsedRange?.groupValues?.getOrNull(1)?.toLongOrNull()?.let { returnedStart ->
+                if (response.code == 206) {
+                    check(parsedRange != null) { "The ranged response did not include Content-Range." }
+                    val returnedStart = parsedRange!!.groupValues[1].toLong()
+                    val returnedEnd = parsedRange.groupValues[2].toLong()
                     check(returnedStart == copied) { "The stream returned an unexpected starting byte." }
+                    check(returnedEnd <= end) { "The stream returned bytes beyond the requested range." }
+                    parsedRange.groupValues[3].takeUnless { it == "*" }?.toLongOrNull()?.let { total = it }
+                } else {
+                    // A server may ignore Range for the very first request, but accepting a
+                    // full 200 response after offset zero would append an error/full file to
+                    // an otherwise valid download.
+                    check(copied == 0L) { "The download server ignored Range after byte $copied." }
+                    if (total < 0L) total = body.contentLength()
                 }
-                parsedRange?.groupValues?.getOrNull(3)?.takeUnless { it == "*" }?.toLongOrNull()?.let {
-                    total = it
-                }
-                if (total < 0L && response.code == 200) total = body.contentLength()
 
+                val expectedChunk = if (response.code == 206 && parsedRange != null) {
+                    parsedRange.groupValues[2].toLong() - parsedRange.groupValues[1].toLong() + 1L
+                } else null
                 var chunkCopied = 0L
                 body.byteStream().use { input ->
                     while (shouldContinue()) {
                         val count = input.read(buffer)
                         if (count <= 0) break
+                        if (expectedChunk != null) {
+                            check(chunkCopied + count <= expectedChunk) { "The stream returned too many bytes for its range." }
+                        }
                         output.write(buffer, 0, count)
                         copied += count
                         chunkCopied += count
                         onProgress(copied, total)
                     }
+                }
+                if (expectedChunk != null) {
+                    check(chunkCopied == expectedChunk) { "The ranged response ended before its declared end byte." }
                 }
                 emptyChunk = chunkCopied == 0L
                 if (response.code == 200) total = copied
@@ -98,7 +118,15 @@ internal object CubicRangeTransfer {
             if (emptyChunk) break
         }
         output.flush()
+        check(total <= 0L || copied == total) { "Download ended at $copied bytes; expected $total." }
         return copied
+    }
+
+    private fun isMediaContentType(value: String): Boolean {
+        if (value.isBlank()) return true
+        val type = value.substringBefore(';').trim().lowercase()
+        return type.startsWith("audio/") || type.startsWith("video/") ||
+            type == "application/octet-stream" || type == "application/mp4"
     }
 
     private fun Request.Builder.applyPlaybackHeaders(headers: CubicPlaybackHeaders): Request.Builder = apply {

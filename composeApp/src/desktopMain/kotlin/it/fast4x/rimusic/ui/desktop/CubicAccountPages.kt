@@ -3,6 +3,8 @@ package app.it.fast4x.rimusic.ui.desktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,7 +102,12 @@ internal fun CubicSettingsPage(
     var confirmClear by remember { mutableStateOf(false) }
     var draftName by remember(username) { mutableStateOf(username) }
     var saved by remember(username) { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val scrollState = rememberScrollState()
+    val scrollScope = rememberCoroutineScope()
+    Column(
+        Modifier.fillMaxSize().padding(28.dp).cubicKeyboardScroll(scrollState, scrollScope).verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Text("Settings", color = CubicColors.Text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         CubicSettingsCard("Profile", Icons.Rounded.Person) {
             Text("Your profile is stored locally on this computer.", color = CubicColors.TextSecondary, fontSize = 11.sp)

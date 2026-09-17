@@ -16,8 +16,10 @@ import kotlin.math.min
  * network worker continues to fetch the whole track, so range retries never restart playback.
  */
 internal object CubicPlaybackBuffer {
-    private const val CHUNK_LENGTH = 512L * 1024L
-    private const val STARTUP_BUFFER = 768L * 1024L
+    // Keep the decoder fed with ArchiveTune-sized reads.  YouTube's CDN is much
+    // less reliable when it is hammered with a series of tiny signed ranges.
+    private const val CHUNK_LENGTH = 8L * 1024L * 1024L
+    private const val STARTUP_BUFFER = 1L * 1024L * 1024L
     private const val RETRIES_PER_CHUNK = 3
     private val contentRangePattern = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)", RegexOption.IGNORE_CASE)
     private val sessions = ConcurrentHashMap<String, BufferSession>()
@@ -150,22 +152,44 @@ internal object CubicPlaybackBuffer {
                 .build()
             client.newCall(request).execute().use { response ->
                 check(response.isSuccessful) { "Buffered stream HTTP ${response.code} at $start-$end" }
-                response.header("Content-Range")?.let(contentRangePattern::find)?.let { match ->
+                check(response.code != 200 || start == 0L) {
+                    "Buffered stream ignored Range after byte $start"
+                }
+                val parsedRange = response.header("Content-Range")?.let(contentRangePattern::find)
+                val expectedChunk = if (response.code == 206) {
+                    check(parsedRange != null) { "Buffered stream response omitted Content-Range" }
+                    parsedRange!!.groupValues[2].toLong() - parsedRange.groupValues[1].toLong() + 1L
+                } else null
+                parsedRange?.let { match ->
                     val returnedStart = match.groupValues[1].toLong()
+                    val returnedEnd = match.groupValues[2].toLong()
                     check(returnedStart == start) { "Buffered stream returned byte $returnedStart instead of $start" }
+                    check(returnedEnd <= end) { "Buffered stream returned bytes beyond $end" }
                     match.groupValues[3].takeUnless { it == "*" }?.toLongOrNull()?.let { total = it }
                 }
                 if (total < 0L && response.code == 200) total = response.body.contentLength()
                 val bytes = ByteArray(64 * 1024)
+                var chunkCopied = 0L
                 response.body.byteStream().use { input ->
                     while (!cancelled) {
                         val count = input.read(bytes)
                         if (count <= 0) break
+                        if (expectedChunk != null) {
+                            check(chunkCopied + count <= expectedChunk) {
+                                "Buffered stream returned too many bytes for its range"
+                            }
+                        }
                         sink.write(bytes, 0, count)
+                        chunkCopied += count
                         synchronized(monitor) {
                             downloaded += count
                             monitor.notifyAll()
                         }
+                    }
+                }
+                if (!cancelled && expectedChunk != null) {
+                    check(chunkCopied == expectedChunk) {
+                        "Buffered stream ended at $chunkCopied bytes; expected $expectedChunk"
                     }
                 }
             }

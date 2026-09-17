@@ -63,25 +63,25 @@ internal fun CubicMiniPlayer(
     var scrubbing by remember(song?.id) { mutableStateOf(false) }
     var scrubProgress by remember(song?.id) { mutableFloatStateOf(0f) }
     val displayedProgress = if (scrubbing) scrubProgress else liveProgress
-    val glassShape = RoundedCornerShape(28.dp)
+    val glassShape = RoundedCornerShape(20.dp)
 
     Row(
-        Modifier.fillMaxSize().padding(3.dp).shadow(18.dp, glassShape).clip(glassShape)
+        Modifier.fillMaxSize().padding(2.dp).shadow(14.dp, glassShape).clip(glassShape)
             .background(
                 Brush.horizontalGradient(
                     listOf(Color(0xF02B163E), Color(0xF51B1B23), Color(0xF02B2638))
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = 0.18f), glassShape)
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.16f), glassShape)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        CubicArtwork(song?.thumbnailUrl, Modifier.size(72.dp), 20.dp)
+        CubicArtwork(song?.thumbnailUrl, Modifier.size(54.dp), 14.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text(song?.title ?: "Cubic Music", color = CubicColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(if (isResolving) "Preparing stream" else song?.artistsText ?: "Nothing playing", color = CubicColors.TextMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song?.title ?: "Cubic Music", color = CubicColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(1.dp))
+            Text(if (isResolving) "Preparing stream" else song?.artistsText ?: "Nothing playing", color = CubicColors.TextMuted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Slider(
                 value = displayedProgress,
                 onValueChange = { value -> scrubbing = true; scrubProgress = value },
@@ -90,7 +90,7 @@ internal fun CubicMiniPlayer(
                     scrubbing = false
                 },
                 enabled = song != null && state.duration > 0L,
-                modifier = Modifier.fillMaxWidth().height(26.dp),
+                modifier = Modifier.fillMaxWidth().height(20.dp),
                 colors = SliderDefaults.colors(
                     thumbColor = CubicColors.Accent,
                     activeTrackColor = CubicColors.Accent,
@@ -101,31 +101,31 @@ internal fun CubicMiniPlayer(
             )
         }
         Box(
-            Modifier.size(42.dp).clip(CircleShape).background(CubicColors.Accent)
+            Modifier.size(36.dp).clip(CircleShape).background(CubicColors.Accent)
                 .clickable(enabled = song != null && !isResolving) { if (state.isPlaying) controller.pause() else controller.play() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(if (state.isPlaying) Icons.Filled.Pause else Icons.Rounded.PlayArrow, if (state.isPlaying) "Pause" else "Play", tint = CubicColors.Background, modifier = Modifier.size(22.dp))
+            Icon(if (state.isPlaying) Icons.Filled.Pause else Icons.Rounded.PlayArrow, if (state.isPlaying) "Pause" else "Play", tint = CubicColors.Background, modifier = Modifier.size(19.dp))
         }
-        IconButton(onClick = onNext, enabled = canGoNext, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Rounded.SkipNext, "Next", tint = if (canGoNext) CubicColors.TextSecondary else CubicColors.TextMuted, modifier = Modifier.size(20.dp))
+        IconButton(onClick = onNext, enabled = canGoNext, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Rounded.SkipNext, "Next", tint = if (canGoNext) CubicColors.TextSecondary else CubicColors.TextMuted, modifier = Modifier.size(18.dp))
         }
-        IconButton(onClick = controller::toggleSound, enabled = song != null, modifier = Modifier.size(32.dp)) {
-            Icon(if (state.isMuted || state.volume == 0f) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, "Mute", tint = CubicColors.TextSecondary, modifier = Modifier.size(19.dp))
+        IconButton(onClick = controller::toggleSound, enabled = song != null, modifier = Modifier.size(28.dp)) {
+            Icon(if (state.isMuted || state.volume == 0f) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, "Mute", tint = CubicColors.TextSecondary, modifier = Modifier.size(17.dp))
         }
         Slider(
             value = if (state.isMuted) 0f else state.volume,
             onValueChange = controller::setVolume,
             enabled = song != null,
-            modifier = Modifier.width(64.dp).height(26.dp),
+            modifier = Modifier.width(48.dp).height(20.dp),
             colors = SliderDefaults.colors(
                 thumbColor = CubicColors.Accent,
                 activeTrackColor = CubicColors.Accent,
                 inactiveTrackColor = Color.White.copy(alpha = 0.14f)
             )
         )
-        IconButton(onClick = onRestore, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Rounded.OpenInFull, "Restore Cubic Music", tint = CubicColors.Accent, modifier = Modifier.size(19.dp))
+        IconButton(onClick = onRestore, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Rounded.OpenInFull, "Restore Cubic Music", tint = CubicColors.Accent, modifier = Modifier.size(17.dp))
         }
     }
 }

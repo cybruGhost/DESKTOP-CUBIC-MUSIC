@@ -13,14 +13,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BookmarkAdd
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,16 +39,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.it.fast4x.rimusic.utils.asSong
+import app.it.fast4x.rimusic.utils.completed
+import database.entities.Album
 import database.entities.Song
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
 import it.fast4x.innertube.requests.albumPage
 
 @Composable
-internal fun CubicAlbumDetailPage(browseId: String, onAlbumSongClick: (List<Song>, Int) -> Unit, onAlbumClick: (String) -> Unit) {
+internal fun CubicAlbumDetailPage(
+    browseId: String,
+    onAlbumSongClick: (List<Song>, Int) -> Unit,
+    onAlbumClick: (String) -> Unit,
+    onSaveAlbum: (Album, List<Song>) -> Unit = { _, _ -> }
+) {
     var album by remember(browseId) { mutableStateOf<Innertube.PlaylistOrAlbumPage?>(null) }
     var error by remember(browseId) { mutableStateOf<String?>(null) }
     var retry by remember(browseId) { mutableIntStateOf(0) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
 
     LaunchedEffect(browseId, retry) {
         album = null
@@ -56,6 +67,7 @@ internal fun CubicAlbumDetailPage(browseId: String, onAlbumSongClick: (List<Song
             return@LaunchedEffect
         }
         Innertube.albumPage(BrowseBody(browseId = browseId))
+            ?.completed()
             ?.onSuccess { page -> if (page != null) album = page else error = "The album page was empty." }
             ?.onFailure { error = it.message ?: "Could not load this album." }
             ?: run { error = "Could not load this album." }
@@ -65,7 +77,10 @@ internal fun CubicAlbumDetailPage(browseId: String, onAlbumSongClick: (List<Song
     when {
         error != null -> CubicErrorState(error.orEmpty()) { retry++ }
         page == null -> CubicLoadingState("Loading album")
-        else -> LazyColumn(Modifier.fillMaxSize().padding(horizontal = 28.dp)) {
+        else -> LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp).cubicKeyboardScroll(listState, scrollScope)
+        ) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                     CubicArtwork(page.thumbnail?.url, Modifier.size(180.dp), 22.dp)
@@ -74,6 +89,25 @@ internal fun CubicAlbumDetailPage(browseId: String, onAlbumSongClick: (List<Song
                         Text(page.title.orEmpty(), color = CubicColors.Text, fontSize = 31.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text(page.authors.orEmpty().joinToString(", ") { it.name.orEmpty() }, color = CubicColors.TextSecondary, fontSize = 13.sp)
                         Text(listOfNotNull(page.year, page.otherInfo).joinToString(" • "), color = CubicColors.TextMuted, fontSize = 11.sp)
+                    }
+                    IconButton(
+                        onClick = {
+                            onSaveAlbum(
+                                Album(
+                                    id = browseId,
+                                    title = page.title,
+                                    thumbnailUrl = page.thumbnail?.url,
+                                    year = page.year,
+                                    authorsText = page.authors.orEmpty().joinToString(", ") { it.name.orEmpty() },
+                                    shareUrl = page.url,
+                                    timestamp = System.currentTimeMillis(),
+                                    bookmarkedAt = System.currentTimeMillis()
+                                ),
+                                page.songsPage?.items.orEmpty().map { it.asSong }
+                            )
+                        }
+                    ) {
+                        Icon(Icons.Rounded.BookmarkAdd, "Add album to library", tint = CubicColors.Accent, modifier = Modifier.size(24.dp))
                     }
                 }
             }
@@ -98,7 +132,7 @@ internal fun CubicAlbumDetailPage(browseId: String, onAlbumSongClick: (List<Song
             page.otherVersions.orEmpty().takeIf { it.isNotEmpty() }?.let { versions ->
                 item {
                     Spacer(Modifier.height(25.dp)); CubicSectionTitle("Other versions"); Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(versions, key = { it.key }) { version ->
                             CubicMediaCard(version.title.orEmpty(), version.year.orEmpty(), version.thumbnail?.url, { onAlbumClick(version.key) })
                         }

@@ -18,8 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +55,9 @@ internal fun CubicArtistDetailPage(
     var artist by remember(browseId) { mutableStateOf<Innertube.ArtistInfoPage?>(null) }
     var error by remember(browseId) { mutableStateOf<String?>(null) }
     var retry by remember(browseId) { mutableIntStateOf(0) }
+    var followed by remember(browseId) { mutableStateOf(CubicArtistStore.isFollowed(browseId)) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
 
     LaunchedEffect(browseId, retry) {
         artist = null
@@ -71,7 +78,8 @@ internal fun CubicArtistDetailPage(
         error != null -> CubicErrorState(error.orEmpty()) { retry++ }
         page == null -> CubicLoadingState("Loading artist")
         else -> LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp),
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp).cubicKeyboardScroll(listState, scrollScope),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             item {
@@ -88,6 +96,16 @@ internal fun CubicArtistDetailPage(
                         page.description?.takeIf { it.isNotBlank() }?.let {
                             Text(it, color = CubicColors.TextMuted, fontSize = 11.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                         }
+                    }
+                    IconButton(
+                        onClick = { followed = CubicArtistStore.toggle(browseId, page.name, page.thumbnail?.url) }
+                    ) {
+                        Icon(
+                            if (followed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            if (followed) "Following ${page.name.orEmpty()}" else "Follow ${page.name.orEmpty()}",
+                            tint = if (followed) CubicColors.Accent else CubicColors.TextSecondary,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }
@@ -121,7 +139,7 @@ internal fun CubicArtistDetailPage(
                     Spacer(Modifier.height(24.dp))
                     CubicSectionTitle("Albums")
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(albums, key = { it.key }) { album ->
                             CubicMediaCard(
                                 title = album.title.orEmpty(),
@@ -139,7 +157,7 @@ internal fun CubicArtistDetailPage(
                     Spacer(Modifier.height(24.dp))
                     CubicSectionTitle("Singles")
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(singles, key = { it.key }) { single ->
                             CubicMediaCard(
                                 title = single.title.orEmpty(),
@@ -157,7 +175,7 @@ internal fun CubicArtistDetailPage(
                     Spacer(Modifier.height(24.dp))
                     CubicSectionTitle("Playlists")
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(playlists, key = { it.key }) { playlist ->
                             CubicMediaCard(
                                 title = playlist.title.orEmpty(),

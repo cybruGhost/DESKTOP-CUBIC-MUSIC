@@ -60,6 +60,7 @@ import database.entities.SongEntity
 import it.fast4x.innertube.Innertube
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.ScrollState
 
 @Composable
 internal fun CubicSongsDiscoveryPage(
@@ -92,7 +93,7 @@ internal fun CubicSongsDiscoveryPage(
         if (madeForYou.isNotEmpty()) item {
             CubicSectionTitle("Made for you", "A varied radio mix from the live catalog")
             Spacer(Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
+            CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
                 items(madeForYou.take(14), key = { "made-${it.key}" }) { song ->
                     CubicSongCard(song) { onSongClick(song.asSong) }
                 }
@@ -102,7 +103,7 @@ internal fun CubicSongsDiscoveryPage(
             Spacer(Modifier.height(26.dp))
             CubicSectionTitle("Artists for you", "Open an artist to play their songs")
             Spacer(Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 items(artists.take(8), key = { "for-${it.key}" }) { artist -> CubicArtistCard(artist) { onArtistClick(artist.key) } }
             }
         }
@@ -110,7 +111,7 @@ internal fun CubicSongsDiscoveryPage(
             Spacer(Modifier.height(26.dp))
             CubicSectionTitle("Popular artists", "More voices worth exploring")
             Spacer(Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 items(artists.drop(4).take(10), key = { "popular-${it.key}" }) { artist -> CubicArtistCard(artist) { onArtistClick(artist.key) } }
             }
         }
@@ -303,6 +304,26 @@ internal fun Modifier.cubicKeyboardScroll(state: LazyListState, scope: Coroutine
             Key.PageUp -> ({ state.animateScrollBy(-620f) })
             Key.MoveHome -> ({ state.animateScrollToItem(0) })
             Key.MoveEnd -> ({ state.animateScrollToItem((state.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) })
+            else -> null
+        }
+        action?.let { scope.launch { it() } }
+        action != null
+    }
+
+internal fun Modifier.cubicKeyboardScroll(state: ScrollState, scope: CoroutineScope): Modifier =
+    pointerInput(state) {
+        detectDragGestures { _, dragAmount ->
+            state.dispatchRawDelta(-dragAmount.y)
+        }
+    }.focusable().onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        val action: (suspend () -> Unit)? = when (event.key) {
+            Key.DirectionDown -> ({ state.animateScrollBy(170f) })
+            Key.DirectionUp -> ({ state.animateScrollBy(-170f) })
+            Key.PageDown -> ({ state.animateScrollBy(620f) })
+            Key.PageUp -> ({ state.animateScrollBy(-620f) })
+            Key.MoveHome -> ({ state.animateScrollTo(0) })
+            Key.MoveEnd -> ({ state.animateScrollTo(state.maxValue) })
             else -> null
         }
         action?.let { scope.launch { it() } }

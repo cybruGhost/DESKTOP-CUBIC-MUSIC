@@ -38,10 +38,12 @@ internal object CubicPlayTorrioResolver {
     private const val VISITOR_TTL_MS = 3 * 60 * 60 * 1000L
     private const val URL_EXPIRY_SAFETY_MS = 2 * 60 * 1000L
     private const val DEFAULT_URL_TTL_MS = 20 * 60 * 1000L
+    private const val FAILED_URL_TTL_MS = 30 * 60 * 1000L
     private const val CPN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
     private val failedClientsUntil = ConcurrentHashMap<String, Long>()
+    private val failedStreamsUntil = ConcurrentHashMap<String, ConcurrentHashMap<String, Long>>()
     private val resolveLocks = ConcurrentHashMap<String, Mutex>()
 
     @Volatile private var visitorCache: CachedVisitor? = null
@@ -53,21 +55,45 @@ internal object CubicPlayTorrioResolver {
             cached(videoId)?.let { return@withLock it }
             resolveFresh(videoId, httpClient)?.also { url ->
                 streamCache[videoId] = CachedStream(url, expiryFor(url))
+                return@withLock url
             }
+            // PoToken-bound WEB_REMIX is slower, so keep it behind the normal
+            // no-login clients. It covers videos that InnerTube labels restricted.
+            resolveCubicWebPoTokenStream(videoId, httpClient)?.takeUnless { isFailedStream(videoId, it) }?.also { url ->
+                streamCache[videoId] = CachedStream(url, expiryFor(url))
+                return@withLock url
+            }
+            // Some age-restricted uploads expose no media to anonymous InnerTube
+            // clients at all. The converter is an explicit last resort for those
+            // tracks; it is never consulted while a direct stream is available.
+            CubicConvertYtMp3Resolver.resolve(videoId, httpClient)?.also { url ->
+                streamCache[videoId] = CachedStream(url, expiryFor(url))
+                return@withLock url
+            }
+            null
         }
     }
 
+    /** Resolves a file-oriented URL without sharing the playback cache. Progressive MP4 is
+     * preferred when YouTube exposes one, while the audio-only formats remain the fallback. */
+    suspend fun resolveForDownload(videoId: String, httpClient: OkHttpClient): String? =
+        resolveFresh(videoId, httpClient, downloadMode = true)
+            ?: CubicConvertYtMp3Resolver.resolve(videoId, httpClient)
+
     fun markFailed(videoId: String, url: String) {
         streamCache.remove(videoId)
+        failedStreamsUntil.computeIfAbsent(videoId) { ConcurrentHashMap() }[streamIdentity(url)] =
+            System.currentTimeMillis() + FAILED_URL_TTL_MS
+        // A media URL can expire or lose a CDN race while the client itself is healthy.
+        // Do not quarantine that client for ten minutes: doing so made recovery skip the
+        // only working iOS source and left the next play attempt with no formats.
         val clientName = url.toHttpUrlOrNull()?.queryParameter("c").orEmpty()
-        if (clientName.isNotBlank()) {
-            failedClientsUntil[clientKey(videoId, clientName)] =
-                System.currentTimeMillis() + CLIENT_BACKOFF_MS
-        }
+        if (clientName.isNotBlank()) failedClientsUntil.remove(clientKey(videoId, clientName))
     }
 
     fun invalidate(videoId: String) {
         streamCache.remove(videoId)
+        failedStreamsUntil.remove(videoId)
     }
 
     private fun cached(videoId: String): String? {
@@ -76,11 +102,15 @@ internal object CubicPlayTorrioResolver {
         else null.also { streamCache.remove(videoId, cached) }
     }
 
-    private suspend fun resolveFresh(videoId: String, httpClient: OkHttpClient): String? =
+    private suspend fun resolveFresh(videoId: String, httpClient: OkHttpClient, downloadMode: Boolean = false): String? =
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             val visitorData = refreshedVisitorData(videoId, httpClient)
-            val primaryClients = cubicDesktopPlaybackClients.filterNot { it.clientName == "IOS" }
+            // Keep the reference extractor's no-login order: VisionOS, Android VR and
+            // iOS.  Some iOS media URLs accept the first byte range but reject later
+            // ranges, while the same video from VisionOS/Android streams continuously.
+            // iOS stays in the pool as a real fallback rather than being filtered out.
+            val primaryClients = cubicDesktopPlaybackClients
             val clients = primaryClients.filter { client ->
                 (failedClientsUntil[clientKey(videoId, client.clientName)] ?: 0L) <= now
             }.ifEmpty {
@@ -92,6 +122,10 @@ internal object CubicPlayTorrioResolver {
             var signatureTimestampLoaded = false
             for (client in clients) {
                 if (client.loginRequired && Innertube.cookie.isNullOrBlank()) continue
+                // WEB/TV clients now require a bound PoToken. Calling them without
+                // one often returns a URL that works for byte zero and then 403s;
+                // the dedicated PoToken resolver below handles these clients.
+                if (client.useWebPoTokens) continue
                 if (client.useSignatureTimestamp && !signatureTimestampLoaded) {
                     signatureTimestamp = NewPipeUtils.getSignatureTimestamp(videoId).getOrNull()
                     signatureTimestampLoaded = true
@@ -123,12 +157,13 @@ internal object CubicPlayTorrioResolver {
                     continue
                 }
 
-                for (format in orderedFormats(response.streamingData)) {
+                for (format in orderedFormats(response.streamingData, downloadMode)) {
                     val rawUrl = NewPipeUtils.getStreamUrl(format, videoId)
                         .getOrNull()
                         ?.takeIf(String::isNotBlank)
                         ?: continue
                     val identified = attachCubicPlaybackIdentity(rawUrl, client, playbackCpn()) ?: continue
+                    if (isFailedStream(videoId, identified)) continue
                     resolveReachableCdn(identified, httpClient)?.let { reachable ->
                         System.err.println("Cubic playback source: PlayTorrio InnerTube ${client.clientName}")
                         return@withContext reachable
@@ -215,10 +250,11 @@ internal object CubicPlayTorrioResolver {
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         val contentType = it.header("Content-Type").orEmpty()
+                        val mediaType = contentType.substringBefore(';').trim()
                         val usableType = contentType.isBlank() ||
-                            contentType.startsWith("audio/", ignoreCase = true) ||
-                            contentType.startsWith("application/octet-stream", ignoreCase = true) ||
-                            contentType.contains("audio", ignoreCase = true)
+                            mediaType.startsWith("audio/", ignoreCase = true) ||
+                            mediaType.startsWith("video/", ignoreCase = true) ||
+                            mediaType == "application/octet-stream" || mediaType == "application/mp4"
                         if (continuation.isActive) {
                             continuation.resume((it.code == 200 || it.code == 206) && usableType)
                         }
@@ -250,17 +286,23 @@ internal object CubicPlayTorrioResolver {
         }.distinct().take(3)
     }
 
-    private fun orderedFormats(streamingData: PlayerResponse.StreamingData?): List<PlayerResponse.StreamingData.Format> {
-        val preferredItags = listOf(141, 140, 251, 250, 249, 139, 171, 774)
+    private fun orderedFormats(streamingData: PlayerResponse.StreamingData?, downloadMode: Boolean): List<PlayerResponse.StreamingData.Format> {
+        val preferredItags = if (downloadMode) {
+            listOf(18, 22, 135, 134, 140, 141, 251, 250, 249, 139, 171, 774)
+        } else {
+            listOf(141, 140, 251, 250, 249, 139, 171, 774)
+        }
         return (streamingData?.adaptiveFormats.orEmpty() + streamingData?.formats.orEmpty())
             .asSequence()
             .filter { format ->
-                format.isAudio &&
+                (downloadMode || format.isAudio) &&
                     (!format.url.isNullOrBlank() || !format.signatureCipher.isNullOrBlank())
             }
             .distinctBy { it.itagValue ?: it.mimeType + it.url.orEmpty() + it.signatureCipher.orEmpty() }
             .sortedWith(
                 compareBy<PlayerResponse.StreamingData.Format> {
+                    if (downloadMode && !it.isAudio && !it.url.isNullOrBlank()) 0 else 1
+                }.thenBy {
                     preferredItags.indexOf(it.itagValue).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE
                 }.thenByDescending { it.bitrateValue ?: 0 }
             )
@@ -283,6 +325,30 @@ internal object CubicPlayTorrioResolver {
     }
 
     private fun clientKey(videoId: String, clientName: String) = "$videoId:$clientName"
+
+    private fun isFailedStream(videoId: String, url: String): Boolean {
+        val streams = failedStreamsUntil[videoId] ?: return false
+        val now = System.currentTimeMillis()
+        streams.entries.removeIf { it.value <= now }
+        return streams[streamIdentity(url)]?.let { it > now } == true
+    }
+
+    /**
+     * Keep the stable media identity while ignoring expiring signatures, CDN hosts and
+     * per-request routing values. A retry must move to another format/client instead of
+     * resolving the same signed URL again with a different token.
+     */
+    private fun streamIdentity(url: String): String {
+        val parsed = url.toHttpUrlOrNull() ?: return url
+        return listOf(
+            parsed.queryParameter("id").orEmpty(),
+            parsed.queryParameter("itag").orEmpty(),
+            parsed.queryParameter("mime").orEmpty(),
+            parsed.queryParameter("clen").orEmpty(),
+            parsed.queryParameter("dur").orEmpty(),
+            parsed.queryParameter("lmt").orEmpty()
+        ).joinToString("|")
+    }
 
     private data class CachedStream(val url: String, val expiresAtMs: Long)
     private data class CachedVisitor(val value: String, val expiresAtMs: Long)

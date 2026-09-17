@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
@@ -49,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,10 +97,11 @@ internal object CubicRoutes {
     const val Playlist = "playlist"
     const val Mood = "mood"
     const val Cached = "cached"
+    const val Taste = "taste"
     const val Profile = "profile"
     const val Settings = "settings"
 
-    val primary = setOf(Browse, NewReleases, Songs, Albums, Artists, Recent, Favorites, Playlists, Cached, Profile, Settings)
+    val primary = setOf(Browse, NewReleases, Songs, Albums, Artists, Recent, Favorites, Playlists, Cached, Taste, Profile, Settings)
 }
 
 private data class SidebarItem(
@@ -116,7 +121,8 @@ private val libraryItems = listOf(
 private val personalItems = listOf(
     SidebarItem(CubicRoutes.Recent, "Recently played", Icons.Rounded.History),
     SidebarItem(CubicRoutes.Favorites, "Favorite songs", Icons.Rounded.FavoriteBorder),
-    SidebarItem(CubicRoutes.Cached, "Downloads", Icons.Rounded.DownloadDone)
+    SidebarItem(CubicRoutes.Taste, "My taste", Icons.Rounded.Favorite),
+    SidebarItem(CubicRoutes.Cached, "Downloaded", Icons.Rounded.DownloadDone)
 )
 
 @Composable
@@ -132,6 +138,8 @@ internal fun CubicSidebar(
     val sidebarWidth by animateDpAsState(if (isExpanded) 244.dp else 78.dp)
     val horizontalPadding by animateDpAsState(if (isExpanded) 24.dp else 10.dp)
     val firstFocusRequester = remember { FocusRequester() }
+    val sidebarScrollState = rememberScrollState()
+    val sidebarScrollScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         // Give keyboard users an obvious starting point without stealing focus from search.
@@ -143,6 +151,14 @@ internal fun CubicSidebar(
             keyboardExpanded = false
         }
     }
+    LaunchedEffect(currentRoute, isExpanded) {
+        if (!isExpanded) return@LaunchedEffect
+        // Keep the active section in view: Library focuses the top, while My Music
+        // automatically brings its items into the spotlight when selected.
+        delay(120)
+        val personalRoute = currentRoute in personalItems.map { it.route }
+        sidebarScrollState.animateScrollTo(if (personalRoute) sidebarScrollState.maxValue else 0)
+    }
 
     Column(
         modifier = Modifier
@@ -150,6 +166,8 @@ internal fun CubicSidebar(
             .fillMaxHeight()
             .focusGroup()
             .hoverable(interaction)
+            .cubicKeyboardScroll(sidebarScrollState, sidebarScrollScope)
+            .verticalScroll(sidebarScrollState)
             .background(
                 Brush.verticalGradient(
                     listOf(CubicColors.Sidebar.copy(alpha = 0.97f), Color(0xF11B1822))
@@ -200,7 +218,7 @@ internal fun CubicSidebar(
         SidebarSection("LIBRARY", libraryItems, currentRoute, isExpanded, onNavigate, firstFocusRequester) { keyboardExpanded = true }
         Spacer(Modifier.height(24.dp))
         SidebarSection("MY MUSIC", personalItems, currentRoute, isExpanded, onNavigate, null) { keyboardExpanded = true }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(22.dp))
     }
 }
 

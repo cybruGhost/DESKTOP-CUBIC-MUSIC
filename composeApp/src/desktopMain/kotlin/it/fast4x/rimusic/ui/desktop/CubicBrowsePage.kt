@@ -27,11 +27,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -142,7 +149,7 @@ internal fun CubicBrowsePage(
 
                 if (moods.isNotEmpty()) {
                     Spacer(Modifier.height(26.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         items(moods.take(10), key = { it.title }) { mood ->
                             val stripe = Color(mood.stripeColor)
                             Row(
@@ -165,7 +172,7 @@ internal fun CubicBrowsePage(
                     Spacer(Modifier.height(30.dp))
                     CubicSectionTitle("New releases", "Albums landing now")
                     Spacer(Modifier.height(14.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(albums.take(12), key = { it.key }) { album ->
                             CubicMediaCard(
                                 title = album.title.orEmpty(),
@@ -181,7 +188,7 @@ internal fun CubicBrowsePage(
                     Spacer(Modifier.height(30.dp))
                     CubicSectionTitle("Artists to explore", "Based on what is moving now")
                     Spacer(Modifier.height(14.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         items(artists.take(12), key = { it.key }) { artist ->
                             CubicArtistCard(artist, onClick = { onArtistClick(artist.key) })
                         }
@@ -192,7 +199,7 @@ internal fun CubicBrowsePage(
                     Spacer(Modifier.height(30.dp))
                     CubicSectionTitle("Playlists worth opening", "Real collections from the catalog")
                     Spacer(Modifier.height(14.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(playlists.take(12), key = { it.key }) { playlist ->
                             CubicMediaCard(
                                 title = playlist.title.orEmpty(),
@@ -251,12 +258,26 @@ internal fun CubicMediaCard(
 
 @Composable
 internal fun CubicArtistCard(artist: Innertube.ArtistItem, onClick: () -> Unit) {
+    var followed by remember(artist.key) { mutableStateOf(CubicArtistStore.isFollowed(artist.key)) }
     Column(
         modifier = Modifier.width(126.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(bottom = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        CubicArtwork(artist.thumbnail?.url, Modifier.size(118.dp), 59.dp)
+        Box {
+            CubicArtwork(artist.thumbnail?.url, Modifier.size(118.dp), 59.dp)
+            IconButton(
+                onClick = { followed = CubicArtistStore.toggle(artist.key, artist.title, artist.thumbnail?.url) },
+                modifier = Modifier.size(31.dp).align(Alignment.TopEnd).background(CubicColors.Background.copy(alpha = 0.88f), CircleShape)
+            ) {
+                Icon(
+                    if (followed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (followed) "Following ${artist.title.orEmpty()}" else "Follow ${artist.title.orEmpty()}",
+                    tint = if (followed) CubicColors.Accent else CubicColors.TextSecondary,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+        }
         Text(artist.title.orEmpty(), color = CubicColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         artist.subscribersCountText?.let {
             Text(it, color = CubicColors.TextMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

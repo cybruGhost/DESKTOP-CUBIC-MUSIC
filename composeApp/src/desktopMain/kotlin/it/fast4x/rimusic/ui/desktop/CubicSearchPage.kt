@@ -142,7 +142,7 @@ internal fun CubicSearchPage(
                     Spacer(Modifier.height(24.dp))
                     CubicSectionTitle("Albums")
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(searchResults.albums.take(12), key = { it.key }) { album ->
                             CubicMediaCard(
                                 title = album.title.orEmpty(),
@@ -160,7 +160,7 @@ internal fun CubicSearchPage(
                     Spacer(Modifier.height(24.dp))
                     CubicSectionTitle("Artists")
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         items(searchResults.artists.take(12), key = { it.key }) { artist ->
                             CubicArtistCard(artist) { onArtistClick(artist.key) }
                         }
@@ -173,7 +173,7 @@ internal fun CubicSearchPage(
                     Spacer(Modifier.height(24.dp))
                     CubicSectionTitle("Playlists")
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(searchResults.playlists.take(12), key = { it.key }) { playlist ->
                             CubicMediaCard(
                                 title = playlist.title.orEmpty(),

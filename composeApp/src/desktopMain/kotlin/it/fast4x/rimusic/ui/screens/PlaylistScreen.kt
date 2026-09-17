@@ -4,6 +4,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -30,12 +34,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,7 +56,9 @@ import coil3.compose.AsyncImage
 import database.entities.Song
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
+import it.fast4x.innertube.models.bodies.NextBody
 import it.fast4x.innertube.requests.playlistPage
+import it.fast4x.innertube.requests.relatedPage
 import app.it.fast4x.rimusic.EXPLICIT_PREFIX
 import app.it.fast4x.rimusic.items.AlbumItem
 import app.it.fast4x.rimusic.items.SongItem
@@ -63,7 +76,10 @@ import app.it.fast4x.rimusic.utils.getHttpClient
 import app.it.fast4x.rimusic.utils.languageDestination
 import app.it.fast4x.rimusic.utils.resize
 import app.it.fast4x.rimusic.utils.completed
+import app.it.fast4x.rimusic.ui.desktop.CubicHorizontalRow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.bush.translator.Language
 import me.bush.translator.Translator
@@ -89,6 +105,7 @@ fun PlaylistScreen(
     //val rightScrollState = rememberScrollState()
     var playlistPage by remember(browseId) { mutableStateOf<Innertube.PlaylistOrAlbumPage?>(null) }
     var playlistSongs by remember(browseId) { mutableStateOf<List<Innertube.SongItem?>>(emptyList()) }
+    var recommendedSongs by remember(browseId) { mutableStateOf<List<Innertube.SongItem>>(emptyList()) }
     val parentalControlEnabled by remember{ mutableStateOf(false)}
     LaunchedEffect(browseId) {
         if (playlistPage != null && playlistPage!!.songsPage?.continuation == null) return@LaunchedEffect
@@ -102,6 +119,13 @@ fun PlaylistScreen(
         playlistSongs = if (parentalControlEnabled)
             playlistPage?.songsPage?.items?.filter { !it.asSong.title.startsWith(EXPLICIT_PREFIX) }!!
         else playlistPage?.songsPage?.items ?: emptyList()
+    }
+    LaunchedEffect(playlistPage?.songsPage?.items?.firstOrNull()?.key) {
+        val seed = playlistPage?.songsPage?.items?.firstOrNull()?.key ?: return@LaunchedEffect
+        recommendedSongs = Innertube.relatedPage(NextBody(videoId = seed))?.getOrNull()?.songs.orEmpty()
+            .filter { it.key != seed }
+            .distinctBy { it.key }
+            .take(16)
     }
     val playlist = playlistPage
     val endPaddingValues = windowInsets.only(WindowInsetsSides.End).asPaddingValues()
@@ -126,6 +150,7 @@ fun PlaylistScreen(
             verticalAlignment = Alignment.Top,
             modifier = Modifier
                 .fillMaxSize()
+                .cubicPlaylistScroll(scrollState, rememberCoroutineScope())
                 .verticalScroll(scrollState)
         ) {
             Column(
@@ -392,6 +417,25 @@ fun PlaylistScreen(
                         }
                     }
 
+                    if (recommendedSongs.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth().padding(endPaddingValues)
+                        ) {
+                            Title(title = "You might like")
+                        }
+                        CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(recommendedSongs, key = { "playlist-recommended-${it.key}" }) { suggestion ->
+                                SongItem(
+                                    song = suggestion,
+                                    thumbnailSizeDp = 76.dp,
+                                    modifier = Modifier.width(210.dp).clickable { onSongClick(suggestion.asSong) }
+                                )
+                            }
+                        }
+                    }
+
                 }
 
 
@@ -401,3 +445,24 @@ fun PlaylistScreen(
     }
 
 }
+
+/** Makes the legacy two-column playlist detail usable with mouse drags and keyboard navigation. */
+private fun Modifier.cubicPlaylistScroll(state: androidx.compose.foundation.ScrollState, scope: CoroutineScope): Modifier =
+    pointerInput(state) {
+        detectDragGestures { _, dragAmount ->
+            state.dispatchRawDelta(-dragAmount.y)
+        }
+    }.focusable().onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        val action: (suspend () -> Unit)? = when (event.key) {
+            Key.DirectionDown -> ({ state.animateScrollBy(180f) })
+            Key.DirectionUp -> ({ state.animateScrollBy(-180f) })
+            Key.PageDown -> ({ state.animateScrollBy(640f) })
+            Key.PageUp -> ({ state.animateScrollBy(-640f) })
+            Key.MoveHome -> ({ state.animateScrollTo(0) })
+            Key.MoveEnd -> ({ state.animateScrollTo(state.maxValue) })
+            else -> null
+        }
+        action?.let { scope.launch { it() } }
+        action != null
+    }

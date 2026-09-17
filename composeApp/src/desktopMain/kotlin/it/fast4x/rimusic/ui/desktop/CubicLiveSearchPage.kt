@@ -216,7 +216,7 @@ internal fun CubicLiveSearchPage(
             }
             if (found.albums.isNotEmpty()) item {
                 Spacer(Modifier.height(24.dp)); CubicSectionTitle("Albums"); Spacer(Modifier.height(12.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(found.albums.take(12), key = { it.key }) { album ->
                         CubicMediaCard(album.title.orEmpty(), album.authors.orEmpty().joinToString(", ") { it.name.orEmpty() }, album.thumbnail?.url, { onAlbumClick(album.key) })
                     }
@@ -224,13 +224,13 @@ internal fun CubicLiveSearchPage(
             }
             if (found.artists.isNotEmpty()) item {
                 Spacer(Modifier.height(24.dp)); CubicSectionTitle("Artists"); Spacer(Modifier.height(12.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     items(found.artists.take(12), key = { it.key }) { artist -> CubicArtistCard(artist) { onArtistClick(artist.key) } }
                 }
             }
             if (found.playlists.isNotEmpty()) item {
                 Spacer(Modifier.height(24.dp)); CubicSectionTitle("Playlists"); Spacer(Modifier.height(12.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(found.playlists.take(12), key = { it.key }) { playlist ->
                         CubicMediaCard(playlist.title.orEmpty(), playlist.channel?.name.orEmpty(), playlist.thumbnail?.url, { onPlaylistClick(playlist.key) })
                     }

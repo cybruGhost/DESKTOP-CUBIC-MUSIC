@@ -96,7 +96,7 @@ internal fun CubicBrowsePageV2(
                 if (moods.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(24.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                             items(moods.take(12), key = { it.title }) { mood ->
                                 val stripe = Color(mood.stripeColor)
                                 Row(
@@ -117,7 +117,7 @@ internal fun CubicBrowsePageV2(
                         Spacer(Modifier.height(28.dp))
                         CubicSectionTitle("New releases", "Albums landing now")
                         Spacer(Modifier.height(13.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             items(albums.take(12), key = { it.key }) { album ->
                                 CubicMediaCard(
                                     title = album.title.orEmpty(),
@@ -135,7 +135,7 @@ internal fun CubicBrowsePageV2(
                         Spacer(Modifier.height(28.dp))
                         CubicSectionTitle("Artists to explore", "Based on what is moving now")
                         Spacer(Modifier.height(13.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                             items(artists.take(12), key = { it.key }) { artist ->
                                 CubicArtistCard(artist) { onArtistClick(artist.key) }
                             }
@@ -148,7 +148,7 @@ internal fun CubicBrowsePageV2(
                         Spacer(Modifier.height(28.dp))
                         CubicSectionTitle("Playlists worth opening", "Real collections from the catalog")
                         Spacer(Modifier.height(13.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        CubicHorizontalRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             items(playlists.take(12), key = { it.key }) { playlist ->
                                 CubicMediaCard(
                                     title = playlist.title.orEmpty(),
