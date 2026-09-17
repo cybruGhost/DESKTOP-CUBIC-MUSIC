@@ -1,0 +1,13 @@
+/build
+/release
+/lint-baseline.xml
+/accrescent
+/foss
+/.gradle
+/_conveyor.conf
+/conveyor.conf
+/assets/OpenTune-master
+/assets
+/assets/ArchiveTune-main
+/assets\N-Zik-main
+/assets\AirBeats-main

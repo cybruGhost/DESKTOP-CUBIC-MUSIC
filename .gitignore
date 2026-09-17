@@ -1,0 +1,59 @@
+/captures
+.externalNativeBuild
+.cxx
+.ignore.d/
+
+###      IDEA
+.idea
+.gradle
+.gradle-local
+.gradle-local-run
+.gradle-user-home
+.vscode
+.assets/OpenTune-master
+
+###      BUILDS
+**build/
+
+###      BINS
+**bin/
+/assets/OpenTune-master
+/assets/ArchiveTune-main
+# Ignore N-Zik project
+/assets/N-Zik-main/
+# Ignore  AirBeats-main project
+/assets/Flow-maininnertubex-main
+/assets/Flow-main
+/assets/AirBeats-main
+/cubic_music_notifications.json
+/extensions/innertubeX
+/assets/RiPlay-main
+/assets/shazam
+/assets/blazify-main
+/assets/rewind.zip
+/assets/wrapped.zip
+/composeApp/src/desktopMain/kotlin/it/fast4x/rimusic/net/CubicOmadaResolver.kt
+/assets/innertubex-main
+/assets/N-Zik-4cdc551568d04b56a81fb01874c97eaa9693edfd
+###      ANDROID
+**APK keystore/
+.DS_Store
+/composeApp/src/androidMain/kotlin/app/it/fast4x/rimusic/utils/SecureApiConfig.kt
+###      PROPERTIES
+**local.properties
+**crowdin.properties
+**__crowdin.properties
+
+
+###     DEPENDENCIES
+/YT python/
+/.kotlin/
+
+###      LOCAL REPOSITORY OUTPUTS
+/releases/
+/assets/zemer-cipher-master/
+/assets/codex-scripts/
+/README.md
+.env
+hs_err_pid*.log
+replay_pid*.log
