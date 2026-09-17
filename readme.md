@@ -1,18 +1,20 @@
-# Cubic Music Desktop · Version 2
+# Cubic Music Desktop · Version 3
 
 An independent, open-source desktop music player built with Kotlin Multiplatform and Compose for Desktop.
 
 Cubic Music Desktop brings a focused AirBeats-inspired listening workspace to Windows: live search, rich discovery shelves, radio-style Up Next, synchronized lyrics, downloads you can manage locally, and a compact player that stays out of the way.
 
-The desktop stream and recovery layer is called **G-Stream**—my own Cubic Music work. It uses the open InnerTube protocol surface, refreshes expiring media URLs, and keeps playback moving when a source needs to recover.
+The desktop stream and recovery layer is called **G-Stream**—my own Cubic Music work. It uses the open InnerTube protocol surface, performs signature and n-parameter handling through the existing extractor stack, refreshes expiring media URLs, and keeps playback moving when a source needs to recover.
 
 ## Download
 
-Download the latest portable build from the [Version 2 release](https://github.com/cybruGhost/DESKTOP-CUBIC-MUSIC/releases/tag/v2.0.0):
+Download the latest portable build from the [desktop releases page](https://github.com/cybruGhost/DESKTOP-CUBIC-MUSIC/releases/latest):
 
 **`CubicMusic-Portable.exe`**
 
 The portable build is one file. Copy it anywhere and double-click it; no installer or companion folder is required. The first launch may take a few seconds while the bundled desktop runtime is prepared.
+
+Version 3 adds buffered multi-range playback, automatic source recovery, richer discovery and search, persistent listening taste, keyboard and touchpad navigation, and a smaller glass-style mini-player.
 
 ## What is in this repository
 
