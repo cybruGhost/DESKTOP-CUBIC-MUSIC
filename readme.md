@@ -72,7 +72,7 @@ The single-file portable launcher is produced for the published release from tha
 
 Cubic Music Desktop is released under the [GNU General Public License v3.0](./LICENSE). You are welcome to study, modify, share and reuse the code under those terms. Please keep copyright notices, license text and source availability with redistributed or modified versions.
 
-Permission to reuse Cubic Music code is expressly acknowledged for [N-Zik Group / N-Zik](https://github.com/N-Zik-Group/N-Zik) and [NEVARLeVrai](https://github.com/NEVARLeVrai), subject to GPL-3.0 and the notices of any third-party components they reuse.
+Permission to reuse Cubic Music code is expressly acknowledged for [N-Zik Group / N-Zik](https://github.com/N-Zik-Group/N-Zik) and [NEVARLeVrai](https://github.com/NEVARLeVrai), subject to GPL-3.0 and the notices of any third-party components they reuse. This acknowledgement is non-exclusive: anyone may use, modify and redistribute the code under the same GPL-3.0 terms.
 
 This desktop repository is maintained separately from the Android project. Improvements that are desktop-specific belong here; Android changes belong in [backupcubic](https://github.com/cybruGhost/backupcubic).
 
