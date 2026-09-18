@@ -16,6 +16,17 @@ The portable build is one file. Copy it anywhere and double-click it; no install
 
 Version 3 adds buffered multi-range playback, automatic source recovery, richer discovery and search, persistent listening taste, keyboard and touchpad navigation, and a smaller glass-style mini-player.
 
+## Antivirus and Windows warnings
+
+The portable launcher is currently unsigned and extracts its private desktop runtime to `%LOCALAPPDATA%\\CubicMusic\\PortableCache`. That self-extracting behavior can trigger broad heuristic detections such as `Trojan:Win32/Wacatac.B!ml`, even when the source is available for inspection. This notice is not a promise that every security alert is harmless: treat an unexplained detection as unsafe until it has been verified.
+
+If your antivirus flags the portable file:
+
+1. Keep the file quarantined and do not disable protection or add an exclusion just to launch it.
+2. Download it only from the official [Cubic Music Desktop repository](https://github.com/cybruGhost/DESKTOP-CUBIC-MUSIC) and verify the SHA-256 value published with that release.
+3. Submit the file to [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) as a possible false positive if the detection remains after updating definitions.
+4. For maximum confidence, build the desktop app from this source with JDK 21 and inspect the portable launcher before sharing it.
+
 ## What is in this repository
 
 This repository contains the desktop application and the shared code required to build it:
