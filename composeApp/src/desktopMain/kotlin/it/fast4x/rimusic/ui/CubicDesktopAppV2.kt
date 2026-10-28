@@ -95,6 +95,7 @@ import okhttp3.OkHttpClient
 import windows.FfmpegAudioController
 import java.awt.Frame
 import java.awt.GraphicsEnvironment
+import java.awt.Toolkit
 import java.awt.Window
 
 @Composable
@@ -217,17 +218,24 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
                 windowState.isMinimized = false
                 windowState.placement = WindowPlacement.Floating
                 // Keep the minimized player discreet: it is a floating control, not a second window.
-                windowState.size = DpSize(420.dp, 92.dp)
+                windowState.size = DpSize(352.dp, 92.dp)
                 windowState.position = WindowPosition(Alignment.BottomEnd)
                 delay(150)
                 frame?.let {
                     val screen = it.graphicsConfiguration?.bounds
                         ?: GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
-                    val scale = it.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
-                    val width = (420 * scale).toInt()
-                    val height = (92 * scale).toInt()
+                    val insets = it.graphicsConfiguration?.let(Toolkit.getDefaultToolkit()::getScreenInsets)
+                    // AWT bounds already use logical screen coordinates; scaling them again
+                    // made the compact player enormous on HiDPI Linux and Windows desktops.
+                    val width = 352
+                    val height = 92
                     it.extendedState = Frame.NORMAL
-                    it.setBounds(screen.x + screen.width - width - 18, screen.y + screen.height - height - 18, width, height)
+                    it.setBounds(
+                        screen.x + screen.width - (insets?.right ?: 0) - width - 12,
+                        screen.y + screen.height - (insets?.bottom ?: 0) - height - 12,
+                        width,
+                        height
+                    )
                     it.validate()
                 }
                 hostWindow.isAlwaysOnTop = true
@@ -480,12 +488,10 @@ fun CubicDesktopAppV2(windowState: WindowState, hostWindow: Window) {
     }
     CubicDesktopTheme {
         Box(Modifier.fillMaxSize().background(CubicColors.Background)) {
-            Column(
-                Modifier.fillMaxSize().padding(
-                    horizontal = if (miniMode) 4.dp else 18.dp,
-                    vertical = if (miniMode) 4.dp else 16.dp
-                )
-            ) {
+            Column(Modifier.fillMaxSize().padding(
+                horizontal = if (miniMode) 0.dp else 18.dp,
+                vertical = if (miniMode) 0.dp else 16.dp
+            )) {
         if (miniMode) {
             CubicMiniPlayer(controller, currentSong, isResolving, currentQueueIndex in 0 until playbackQueue.lastIndex, ::playNext, ::restoreFullPlayer)
         } else {
@@ -633,4 +639,3 @@ private fun String?.cubicDurationMillis(): Long {
         total * 60L + part
     } * 1000L
 }
-

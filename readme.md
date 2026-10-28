@@ -1,24 +1,24 @@
-# Cubic Music Desktop · Version 3
+# Cubic Music Desktop · Version 3.0.1
 
 An independent, open-source desktop music player built with Kotlin Multiplatform and Compose for Desktop.
 
-Cubic Music Desktop brings a focused AirBeats-inspired listening workspace to Windows: live search, rich discovery shelves, radio-style Up Next, synchronized lyrics, downloads you can manage locally, and a compact player that stays out of the way.
+Cubic Music Desktop brings a focused listening workspace to Windows and Linux: live search, rich discovery shelves, radio-style Up Next, synchronized lyrics, downloads you can manage locally, and a compact player that stays out of the way.
 
 The desktop stream and recovery layer is called **G-Stream**—my own Cubic Music work. It uses the open InnerTube protocol surface, performs signature and n-parameter handling through the existing extractor stack, refreshes expiring media URLs, and keeps playback moving when a source needs to recover.
 
 ## Download
 
-Download the latest portable build from the [desktop releases page](https://github.com/cybruGhost/DESKTOP-CUBIC-MUSIC/releases/latest):
+Download a published build from the [desktop releases page](https://github.com/cybruGhost/DESKTOP-CUBIC-MUSIC/releases/latest). The Profile page checks that page for a newer release and provides a link when one is available; it does not install updates automatically.
 
-**`CubicMusic-Portable.exe`**
+Version 3.0.1 can be packaged as a Windows `.exe`, `.msi`, or portable `.zip`, and as a Linux `.deb`, `.rpm`, or portable `.tar.gz`. Availability depends on which files are attached to a release. The older single-file **`CubicMusic-Portable.exe`** remains available on releases that include it.
 
-The portable build is one file. Copy it anywhere and double-click it; no installer or companion folder is required. The first launch may take a few seconds while the bundled desktop runtime is prepared.
+Extract a portable archive before launching `CubicMusic` from its `bin` folder. The archives bundle the Java runtime; Linux still needs compatible desktop graphics and audio libraries.
 
 Version 3 adds buffered multi-range playback, automatic source recovery, richer discovery and search, persistent listening taste, keyboard and touchpad navigation, and a smaller glass-style mini-player.
 
 ## Antivirus and Windows warnings
 
-The portable launcher is currently unsigned and extracts its private desktop runtime to `%LOCALAPPDATA%\\CubicMusic\\PortableCache`. That self-extracting behavior can trigger broad heuristic detections such as `Trojan:Win32/Wacatac.B!ml`, even when the source is available for inspection. This notice is not a promise that every security alert is harmless: treat an unexplained detection as unsafe until it has been verified.
+The older single-file portable launcher is unsigned and extracts its private desktop runtime to `%LOCALAPPDATA%\CubicMusic\PortableCache`. That self-extracting behavior can trigger broad heuristic detections such as `Trojan:Win32/Wacatac.B!ml`, even when the source is available for inspection. This notice is not a promise that every security alert is harmless: treat an unexplained detection as unsafe until it has been verified.
 
 If your antivirus flags the portable file:
 
@@ -46,40 +46,45 @@ The Android source set, Android tests, Android resources, APK assets and Android
 - Radio-style Up Next that keeps discovering related music
 - Stream recovery with signed URL refresh and buffered chunk playback
 - Synchronized and plain lyrics, with a live lyric line in the side player
-- Downloads page with play, show-in-Explorer and remove actions
+- Downloads page with play, reveal-in-file-manager and remove actions; downloads select audio streams and reject silent video-only MP4 files
 - Favorites, playlists, profile statistics and appearance preferences
 - Keyboard navigation, touchpad support and mouse-drag scrolling
 - Hover-expanding navigation that collapses automatically
-- Compact glass-style mini-player when the window is minimized
+- Smaller glass-style mini-player when the window is minimized
+- Profile update checker with manual recheck and a link to published releases
 - Cubic Music artwork used consistently in the UI, window and portable EXE
 
 ## Requirements
 
-For the portable release:
+For packaged builds:
 
-- Windows 10 or Windows 11, 64-bit
+- Windows 10/11 x64, or a compatible x64 Linux desktop (Ubuntu, Kali, RPM-based distributions, or another distribution using the portable archive)
 - Internet access for search, streaming, artwork and online lyrics
-- About 600 MB of free space for the executable and its private runtime cache
+- Free disk space for the package, downloaded songs and runtime cache
 
-The launcher keeps its temporary runtime cache under `%LOCALAPPDATA%\\CubicMusic\\PortableCache`. It can be removed after Cubic Music is closed.
+The older single-file Windows launcher keeps its temporary runtime cache under `%LOCALAPPDATA%\CubicMusic\PortableCache`. It can be removed after Cubic Music is closed.
 
-Downloaded songs are stored at `%USERPROFILE%\\Music\\Cubic Music\\Downloads` and can be managed from **MY MUSIC → Downloads** inside the app.
+Downloaded songs are stored at `%USERPROFILE%\Music\Cubic Music\Downloads` on Windows or `~/Music/Cubic Music/Downloads` on Linux, and can be managed from **MY MUSIC → Downloads** inside the app.
 
 ## Build from source
 
-Install JDK 21, then run the desktop distribution task from the repository root:
+Install JDK 21. On Linux, run:
+
+```bash
+./gradlew :composeApp:run
+./gradlew :composeApp:packageLinuxPortable :composeApp:packageDeb :composeApp:packageRpm
+```
+
+On Windows, run:
 
 ```powershell
-.\\gradlew.bat :composeApp:createDistributable --console=plain
+.\gradlew.bat :composeApp:run
+.\gradlew.bat :composeApp:packageWindowsPortable :composeApp:packageExe :composeApp:packageMsi
 ```
 
-The unpacked desktop application is written to:
+Native packaging runs on its matching operating system; the Linux build does not produce Windows installers. The portable archives are written under `composeApp/build/compose/binaries/main/portable/`, and installers under `composeApp/build/compose/binaries/main/`. Override the package version with `-PdesktopVersion=3.0.1` when needed.
 
-```text
-composeApp/build/compose/binaries/main/app/CubicMusic/
-```
-
-The single-file portable launcher is produced for the published release from that distribution and the launcher source in `composeApp/portable/`.
+For platform requirements, artifact paths, and a Windows text-rendering diagnostic, see [Desktop build instructions](./DESKTOP_BUILD.md). The manual **Build desktop packages** workflow can create both platform artifacts; it does not publish a release automatically.
 
 ## Open source and reuse
 

@@ -2,10 +2,17 @@ import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.tasks.bundling.Compression
+import org.gradle.api.tasks.bundling.Tar
+import org.gradle.api.tasks.bundling.Zip
 import java.util.Properties
 
 val APP_NAME = "Cubic-Music"
 val DESKTOP_APP_NAME = "Cubic Music"
+val desktopHostOs = System.getProperty("os.name").lowercase()
+val desktopJavaFxPlatform = if (desktopHostOs.contains("linux")) "linux" else "win"
+val desktopJaveNative = if (desktopJavaFxPlatform == "linux") "linux64" else "win64"
+val desktopVersion = providers.gradleProperty("desktopVersion").orElse("3.0.1").get()
 
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
@@ -75,16 +82,16 @@ kotlin {
             implementation(projects.lrclib)
             implementation(libs.newpipe.extractor)
             implementation(libs.nanojson)
-            implementation("org.openjfx:javafx-base:19:win")
-            implementation("org.openjfx:javafx-graphics:19:win")
-            implementation("org.openjfx:javafx-controls:19:win")
-            implementation("org.openjfx:javafx-media:19:win")
-            implementation("org.openjfx:javafx-web:19:win")
+            implementation("org.openjfx:javafx-base:19:$desktopJavaFxPlatform")
+            implementation("org.openjfx:javafx-graphics:19:$desktopJavaFxPlatform")
+            implementation("org.openjfx:javafx-controls:19:$desktopJavaFxPlatform")
+            implementation("org.openjfx:javafx-media:19:$desktopJavaFxPlatform")
+            implementation("org.openjfx:javafx-web:19:$desktopJavaFxPlatform")
 
             implementation(libs.material.icon.desktop)
             implementation(libs.vlcj)
             implementation("ws.schild:jave-core:3.5.0")
-            runtimeOnly("ws.schild:jave-nativebin-win64:3.5.0")
+            runtimeOnly("ws.schild:jave-nativebin-$desktopJaveNative:3.5.0")
             implementation(libs.hypnoticcanvas)
             implementation(libs.hypnoticcanvas.shaders)
 
@@ -312,9 +319,10 @@ compose.desktop {
     application {
 
         mainClass = "MainKt"
+        jvmArgs += "-Dcubic.desktop.version=$desktopVersion"
 
         //conveyor
-        version = "0.0.1"
+        version = desktopVersion
         group = "rimusic"
 
         //jpackage
@@ -323,10 +331,34 @@ compose.desktop {
             vendor = DESKTOP_APP_NAME
             description = "$DESKTOP_APP_NAME Desktop Music Player"
 
-            targetFormats(TargetFormat.Exe, TargetFormat.Msi)
+            if (desktopJavaFxPlatform == "linux") {
+                targetFormats(TargetFormat.Deb, TargetFormat.Rpm)
+            } else {
+                targetFormats(TargetFormat.Exe, TargetFormat.Msi)
+            }
             packageName = "CubicMusic"
-            packageVersion = "0.0.1"
+            packageVersion = desktopVersion
+            linux {
+                iconFile.set(project.file("src/commonMain/composeResources/drawable/app_icon.png"))
+            }
         }
+    }
+}
+
+if (desktopJavaFxPlatform == "linux") {
+    tasks.register<Tar>("packageLinuxPortable") {
+        dependsOn("createDistributable")
+        from(layout.buildDirectory.dir("compose/binaries/main/app"))
+        compression = Compression.GZIP
+        archiveFileName.set("CubicMusic-$desktopVersion-linux-x64.tar.gz")
+        destinationDirectory.set(layout.buildDirectory.dir("compose/binaries/main/portable"))
+    }
+} else {
+    tasks.register<Zip>("packageWindowsPortable") {
+        dependsOn("createDistributable")
+        from(layout.buildDirectory.dir("compose/binaries/main/app"))
+        archiveFileName.set("CubicMusic-$desktopVersion-windows-x64.zip")
+        destinationDirectory.set(layout.buildDirectory.dir("compose/binaries/main/portable"))
     }
 }
 

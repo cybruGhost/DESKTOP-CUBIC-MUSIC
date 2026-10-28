@@ -34,6 +34,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.awt.Desktop
+import java.net.URI
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import rimusic.composeapp.generated.resources.Res
 import rimusic.composeapp.generated.resources.total_plays
@@ -61,7 +64,15 @@ internal fun CubicProfilePage(
     totalPlays: Int,
     onOpenSettings: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    var updateStatus by remember { mutableStateOf<CubicDesktopUpdateStatus>(CubicDesktopUpdateStatus.Checking) }
+    var openError by remember { mutableStateOf(false) }
+    val updateScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    LaunchedEffect(Unit) { updateStatus = CubicDesktopUpdates.check() }
+    Column(
+        Modifier.fillMaxSize().padding(28.dp).cubicKeyboardScroll(scrollState, updateScope).verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
         Text("Profile", color = CubicColors.Text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(CubicColors.PanelRaised).padding(22.dp),
@@ -86,6 +97,39 @@ internal fun CubicProfilePage(
             CubicStatCard("Favorites", "$favoriteCount tracks", Icons.Rounded.FavoriteBorder, Modifier.weight(1f))
             CubicStatCard("Downloaded", "$downloadCount offline", Icons.Rounded.DownloadDone, Modifier.weight(1f))
             CubicStatCard("Total plays", "$totalPlays sessions", Icons.Rounded.PlaylistPlay, Modifier.weight(1f))
+        }
+        CubicSettingsCard("Desktop updates", Icons.Rounded.DownloadDone) {
+            Text("Installed version ${CubicDesktopUpdates.installedVersion}", color = CubicColors.TextSecondary, fontSize = 12.sp)
+            val statusText = when (val status = updateStatus) {
+                CubicDesktopUpdateStatus.Checking -> "Checking published releases…"
+                CubicDesktopUpdateStatus.NoRelease -> "No desktop release has been published yet."
+                is CubicDesktopUpdateStatus.UpToDate -> "You're up to date (latest: ${status.latest})."
+                is CubicDesktopUpdateStatus.Available -> "Version ${status.latest} is available."
+                is CubicDesktopUpdateStatus.UnknownVersion -> "Latest release: ${status.latest}. Compare it with your version."
+                is CubicDesktopUpdateStatus.Error -> status.message
+            }
+            Text(
+                statusText,
+                color = if (updateStatus is CubicDesktopUpdateStatus.Available) CubicColors.Accent else CubicColors.Text,
+                fontSize = 13.sp,
+                fontWeight = if (updateStatus is CubicDesktopUpdateStatus.Available) FontWeight.Bold else FontWeight.Normal
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    enabled = updateStatus !is CubicDesktopUpdateStatus.Checking,
+                    onClick = {
+                        openError = false
+                        updateStatus = CubicDesktopUpdateStatus.Checking
+                        updateScope.launch { updateStatus = CubicDesktopUpdates.check() }
+                    }
+                ) { Text("Check again") }
+                TextButton(onClick = {
+                    openError = runCatching {
+                        Desktop.getDesktop().browse(URI(CubicDesktopUpdates.releasesUrl))
+                    }.isFailure
+                }) { Text(if (updateStatus is CubicDesktopUpdateStatus.Available) "Get update" else "View releases") }
+            }
+            if (openError) Text("Could not open your browser.", color = CubicColors.Danger, fontSize = 11.sp)
         }
     }
 }

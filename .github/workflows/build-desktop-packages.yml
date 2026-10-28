@@ -1,0 +1,66 @@
+name: Build desktop packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Desktop package version
+        required: true
+        default: '3.0.1'
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux x64 packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install native packaging tools
+        run: sudo apt-get update && sudo apt-get install -y fakeroot rpm
+      - name: Build portable archive, DEB and RPM
+        env:
+          DESKTOP_VERSION: ${{ inputs.version }}
+        run: ./gradlew :composeApp:packageLinuxPortable :composeApp:packageDeb :composeApp:packageRpm "-PdesktopVersion=$DESKTOP_VERSION" --no-daemon
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: cubic-music-linux-${{ inputs.version }}
+          path: |
+            composeApp/build/compose/binaries/main/portable/*.tar.gz
+            composeApp/build/compose/binaries/main/deb/*.deb
+            composeApp/build/compose/binaries/main/rpm/*.rpm
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64 packages
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build portable archive, EXE and MSI
+        shell: pwsh
+        env:
+          DESKTOP_VERSION: ${{ inputs.version }}
+        run: .\gradlew.bat :composeApp:packageWindowsPortable :composeApp:packageExe :composeApp:packageMsi "-PdesktopVersion=$env:DESKTOP_VERSION" --no-daemon
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: cubic-music-windows-${{ inputs.version }}
+          path: |
+            composeApp/build/compose/binaries/main/portable/*.zip
+            composeApp/build/compose/binaries/main/exe/*.exe
+            composeApp/build/compose/binaries/main/msi/*.msi
+          if-no-files-found: error

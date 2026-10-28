@@ -30,7 +30,8 @@ internal object CubicDownloadStore {
     fun localFile(songId: String): File? =
         directory.listFiles()
             .orEmpty()
-            .firstOrNull { it.isFile && it.extension.lowercase() != "part" && it.name.substringBeforeLast('.') == safeId(songId) }
+            .firstOrNull { it.isFile && it.extension.lowercase() in mediaExtensions &&
+                it.name.substringBeforeLast('.') == safeId(songId) && isMarkedComplete(it) }
 
     fun reveal(songId: String): Boolean {
         val file = localFile(songId) ?: return false
@@ -114,6 +115,7 @@ internal object CubicDownloadStore {
             var offset = 0L
             var hasMdat = false
             var hasMovie = false
+            var hasAudio = false
             val length = input.length()
             while (offset + 8L <= length) {
                 input.seek(offset)
@@ -136,12 +138,42 @@ internal object CubicDownloadStore {
                 if (boxSize < headerSize || offset + boxSize > length) return@use false
                 if (type == "mdat") hasMdat = true
                 if (type == "moov" || type == "moof") hasMovie = true
+                if (type == "moov") hasAudio = hasAudio || containsAudioTrack(input, offset + headerSize, offset + boxSize)
                 offset += boxSize
                 if (size32 == 0L) break
             }
-            offset == length && hasMdat && hasMovie
+            offset == length && hasMdat && hasMovie && hasAudio
         }
     }.getOrDefault(false)
+
+    private fun containsAudioTrack(input: RandomAccessFile, start: Long, end: Long): Boolean {
+        var offset = start
+        while (offset + 8L <= end) {
+            input.seek(offset)
+            val size32 = input.readInt().toLong() and 0xFFFF_FFFFL
+            val typeBytes = ByteArray(4)
+            input.readFully(typeBytes)
+            val type = String(typeBytes, Charsets.US_ASCII)
+            val headerSize = if (size32 == 1L) 16L else 8L
+            val boxSize = when (size32) {
+                0L -> end - offset
+                1L -> input.readLong()
+                else -> size32
+            }
+            if (boxSize < headerSize || boxSize > end - offset) return false
+            if (type == "hdlr" && boxSize >= headerSize + 12L) {
+                input.seek(offset + headerSize + 8L)
+                val handler = ByteArray(4)
+                input.readFully(handler)
+                if (String(handler, Charsets.US_ASCII) == "soun") return true
+            }
+            if (type == "trak" || type == "mdia") {
+                if (containsAudioTrack(input, offset + headerSize, offset + boxSize)) return true
+            }
+            offset += boxSize
+        }
+        return false
+    }
 
     internal fun safeId(value: String): String = value.replace(Regex("[^A-Za-z0-9_-]"), "_")
 }

@@ -74,10 +74,9 @@ internal object CubicPlayTorrioResolver {
         }
     }
 
-    /** Resolves a file-oriented URL without sharing the playback cache. Progressive MP4 is
-     * preferred when YouTube exposes one, while the audio-only formats remain the fallback. */
+    /** Downloads must use an audio-bearing format. Adaptive video MP4 has no sound. */
     suspend fun resolveForDownload(videoId: String, httpClient: OkHttpClient): String? =
-        resolveFresh(videoId, httpClient, downloadMode = true)
+        resolveFresh(videoId, httpClient)
             ?: CubicConvertYtMp3Resolver.resolve(videoId, httpClient)
 
     fun markFailed(videoId: String, url: String) {
@@ -102,7 +101,7 @@ internal object CubicPlayTorrioResolver {
         else null.also { streamCache.remove(videoId, cached) }
     }
 
-    private suspend fun resolveFresh(videoId: String, httpClient: OkHttpClient, downloadMode: Boolean = false): String? =
+    private suspend fun resolveFresh(videoId: String, httpClient: OkHttpClient): String? =
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             val visitorData = refreshedVisitorData(videoId, httpClient)
@@ -157,7 +156,7 @@ internal object CubicPlayTorrioResolver {
                     continue
                 }
 
-                for (format in orderedFormats(response.streamingData, downloadMode)) {
+                for (format in orderedFormats(response.streamingData)) {
                     val rawUrl = NewPipeUtils.getStreamUrl(format, videoId)
                         .getOrNull()
                         ?.takeIf(String::isNotBlank)
@@ -286,23 +285,17 @@ internal object CubicPlayTorrioResolver {
         }.distinct().take(3)
     }
 
-    private fun orderedFormats(streamingData: PlayerResponse.StreamingData?, downloadMode: Boolean): List<PlayerResponse.StreamingData.Format> {
-        val preferredItags = if (downloadMode) {
-            listOf(18, 22, 135, 134, 140, 141, 251, 250, 249, 139, 171, 774)
-        } else {
-            listOf(141, 140, 251, 250, 249, 139, 171, 774)
-        }
+    private fun orderedFormats(streamingData: PlayerResponse.StreamingData?): List<PlayerResponse.StreamingData.Format> {
+        val preferredItags = listOf(141, 140, 251, 250, 249, 139, 171, 774)
         return (streamingData?.adaptiveFormats.orEmpty() + streamingData?.formats.orEmpty())
             .asSequence()
             .filter { format ->
-                (downloadMode || format.isAudio) &&
+                format.isAudio &&
                     (!format.url.isNullOrBlank() || !format.signatureCipher.isNullOrBlank())
             }
             .distinctBy { it.itagValue ?: it.mimeType + it.url.orEmpty() + it.signatureCipher.orEmpty() }
             .sortedWith(
                 compareBy<PlayerResponse.StreamingData.Format> {
-                    if (downloadMode && !it.isAudio && !it.url.isNullOrBlank()) 0 else 1
-                }.thenBy {
                     preferredItags.indexOf(it.itagValue).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE
                 }.thenByDescending { it.bitrateValue ?: 0 }
             )
